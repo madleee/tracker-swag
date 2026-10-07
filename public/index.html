@@ -118,6 +118,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .wr span{min-width:0;overflow-wrap:anywhere}
 .wr i{font:500 13px var(--mono);font-style:normal;color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums}
 .wnote{font:12px var(--mono);color:var(--mute);line-height:1.6}
+.wadd{font:12px var(--mono);background:none;border:0;border-top:1px dashed var(--line);color:var(--mute);width:100%;text-align:left;padding:8px 12px;cursor:pointer}
+.wadd:hover{color:var(--bone)}
+.wr .del{padding:0 2px;font-size:12px;opacity:.5}
+.wr i,.wh span,.wh b,.wr span,.wnote{cursor:text}
+
 .check.ev{border-color:var(--ev)}
 .check.ev.on{background:var(--ev);border-color:var(--ev)}
 .when{font:500 13px var(--mono);font-variant-numeric:tabular-nums;line-height:1.2}
@@ -238,27 +243,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 
   <section class="workout">
     <h2><span>workout</span><span>2× в неделю</span></h2>
-    <div class="wk">
-      <div class="list wday">
-        <div class="wh"><b>день а</b><span>спина, плечи, руки</span></div>
-        <div class="wr"><span>тяга блока к тазу (low row)</span><i>3 × 10-12 · 45 кг</i></div>
-        <div class="wr"><span>lateral raises</span><i>3 × 12-15 · 8 кг</i></div>
-        <div class="wr"><span>молотки</span><i>3 × 10-12</i></div>
-        <div class="wr"><span>разгибание из-за головы</span><i>3 × 8-12</i></div>
-        <div class="wr"><span>обратные сгибания</span><i>3 × 10-12</i></div>
-        <div class="wr"><span>разгибания на блоке (канат)</span><i>3 × 10-12</i></div>
-      </div>
-      <div class="list wday">
-        <div class="wh"><b>день б</b><span>грудь, широчайшие, руки</span></div>
-        <div class="wr"><span>жим гантелями лежа</span><i>3 × 8-12 · 12 кг</i></div>
-        <div class="wr"><span>lat pulldown</span><i>3 × 10-12 · 30 кг</i></div>
-        <div class="wr"><span>бицепс арнольда</span><i>3 × 8-12 · 12 кг</i></div>
-        <div class="wr"><span>французский жим лёжа</span><i>3 × 8-10</i></div>
-        <div class="wr"><span>молотки на блоке (канат)</span><i>3 × 10-12</i></div>
-        <div class="wr"><span>разгибания в наклоне</span><i>2 × 12-15</i></div>
-      </div>
-    </div>
-    <div class="wnote">отдых 60-90 сек · 1-2 повтора в запасе · верх диапазона во всех подходах → +вес · локти прижаты, без раскачки</div>
+    <div class="wk" id="wkGrid"></div>
+    <div class="wnote" id="wkNote"></div>
   </section>
 
   <section>
@@ -515,12 +501,41 @@ $("pPrev").onclick=()=>{viewP=prevId(view());render()};
 $("pNext").onclick=()=>{viewP=nextId(view());render()};
 $("goNow").onclick=()=>{viewP=null;render()};
 
+
+/* ---------- workout (editable) ---------- */
+const WK_DEF={
+  a:{title:"день а",focus:"спина, плечи, руки",items:[{name:"тяга блока к тазу (low row)",sets:"3 × 10-12 · 45 кг"},{name:"lateral raises",sets:"3 × 12-15 · 8 кг"},{name:"молотки",sets:"3 × 10-12"},{name:"разгибание из-за головы",sets:"3 × 8-12"},{name:"обратные сгибания",sets:"3 × 10-12"},{name:"разгибания на блоке (канат)",sets:"3 × 10-12"}]},
+  b:{title:"день б",focus:"грудь, широчайшие, руки",items:[{name:"жим гантелями лежа",sets:"3 × 8-12 · 12 кг"},{name:"lat pulldown",sets:"3 × 10-12 · 30 кг"},{name:"бицепс арнольда",sets:"3 × 8-12 · 12 кг"},{name:"французский жим лёжа",sets:"3 × 8-10"},{name:"молотки на блоке (канат)",sets:"3 × 10-12"},{name:"разгибания в наклоне",sets:"2 × 12-15"}]},
+  note:{text:"отдых 60-90 сек · 1-2 повтора в запасе · верх диапазона во всех подходах → +вес · локти прижаты, без раскачки"}};
+let wk={};
+const wkDoc=id=>JSON.parse(JSON.stringify(wk[id]||WK_DEF[id]));
+const wkSave=(id,d)=>write(()=>db.doc("workout/"+id).set(d));
+function wkEdit(node,value,save){inlineEdit(node,value,save)}
+function renderWorkout(){
+  const g=$("wkGrid");if(!g)return;g.replaceChildren();
+  ["a","b"].forEach(id=>{const d=wkDoc(id);const box=el("div","list wday");
+    const h=el("div","wh");const t=el("b",null,d.title);const f=el("span",null,d.focus||"…");
+    wkEdit(t,d.title,v=>{const x=wkDoc(id);x.title=v;wkSave(id,x)});
+    wkEdit(f,d.focus||"",v=>{const x=wkDoc(id);x.focus=v;wkSave(id,x)});
+    h.append(t,f);box.append(h);
+    d.items.forEach((it,i)=>{const r=el("div","wr");const n=el("span",null,it.name);const st=el("i",null,it.sets||"—");
+      wkEdit(n,it.name,v=>{const x=wkDoc(id);x.items[i].name=v;wkSave(id,x)});
+      wkEdit(st,it.sets||"",v=>{const x=wkDoc(id);x.items[i].sets=v;wkSave(id,x)});
+      const x=el("button","del","×");x.setAttribute("aria-label","удалить упражнение");
+      armDelete(x,()=>{const y=wkDoc(id);y.items.splice(i,1);wkSave(id,y)},"удалить?");
+      const right=el("span","acts");right.append(st,x);r.append(n,right);box.append(r)});
+    const add=el("button","wadd","+ упражнение");add.onclick=()=>{const y=wkDoc(id);y.items.push({name:"новое упражнение",sets:"3 × 10-12"});wkSave(id,y)};
+    box.append(add);g.append(box)});
+  const nt=wkDoc("note").text||"";const ns=el("span",null,nt||"заметка…");
+  wkEdit(ns,nt,v=>wkSave("note",{text:v}));$("wkNote").replaceChildren(ns);
+}
+
 /* ---------- render ---------- */
 function busy(){const a=document.activeElement;return !!a&&(a.classList.contains("edit")||a.classList.contains("hr-in")||a.id==="dlInput")}
 function render(){const before=snap();renderAll();flip(before)}
 function renderAll(){
   if(busy())return;
-  renderHeader();renderRoutine();renderInbox();
+  renderHeader();renderRoutine();renderInbox();renderWorkout();
   const vt=viewTasks();
   const todo=vt.filter(t=>t.status!=="done").sort((a,b)=>a.num-b.num);
   const done=vt.filter(t=>t.status==="done").sort((a,b)=>a.num-b.num);
@@ -628,6 +643,7 @@ setInterval(render,60000);
   db.collection("events").onSnapshot(s=>{events=docs(s);render()},err);
   db.collection("habits").onSnapshot(s=>{habits=docs(s);render()},err);
   db.collection("inbox").onSnapshot(s=>{inbox=docs(s);render()},err);
+  db.collection("workout").onSnapshot(s=>{wk={};s.docs.forEach(d=>{wk[d.id]=d.data()});render()},err);
   db.collection("habitlog").where("date",">=",last7()[0]).onSnapshot(s=>{hlog={};s.docs.forEach(d=>{hlog[d.id]=(d.data().h)||{}});render()},err);
 })();
 </script>
