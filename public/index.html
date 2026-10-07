@@ -533,6 +533,31 @@ function renderWorkout(){
   wkEdit(ns,nt,v=>wkSave("note",{text:v}));$("wkNote").replaceChildren(ns);
 }
 
+
+/* ---------- link commands: #add=[{...}] from a link adds items (nothing leaves the phone) ---------- */
+async function applyLinkOps(){
+  const h=location.hash;if(!h.startsWith("#add="))return;
+  history.replaceState(null,"",location.pathname+location.search);
+  let ops;try{ops=JSON.parse(decodeURIComponent(h.slice(5)));if(!Array.isArray(ops))ops=[ops]}catch(e){alert("ссылка битая");return}
+  const now=()=>new Date().toISOString(),txt=[];
+  for(const o of ops){
+    if(o.inbox)txt.push("inbox: "+o.inbox);
+    else if(o.task)txt.push("todo: "+o.task);
+    else if(o.event)txt.push("ивент: "+o.event.date+" "+o.event.title);
+    else if(o.money)txt.push("money: "+(o.money.dir==="in"?"+":"−")+o.money.amount+" "+(o.money.label||""));
+    else if(o.habit)txt.push("рутина: "+o.habit.text);
+  }
+  if(!txt.length||!confirm("добавить в трекер?\n\n"+txt.join("\n")))return;
+  for(const o of ops){
+    if(o.inbox)await db.collection("inbox").add({text:String(o.inbox),createdAt:now()});
+    else if(o.task)await addTask(String(o.task),!!o.opt);
+    else if(o.event)await db.collection("events").add({date:o.event.date,time:o.event.time||"",title:o.event.title,place:o.event.place||"",done:false,period:view(),createdAt:now()});
+    else if(o.money)await db.collection("money").add({dir:o.money.dir==="in"?"in":"out",amount:Number(o.money.amount)||0,cur:o.money.cur||"TRY",label:o.money.label||"",task:null,optional:!!o.money.opt,settled:false,period:view(),createdAt:now()});
+    else if(o.habit)await db.collection("habits").add({text:o.habit.text,time:o.habit.time||"",createdAt:now()});
+  }
+}
+window.addEventListener("hashchange",()=>{if(db)applyLinkOps()});
+
 /* ---------- render ---------- */
 function busy(){const a=document.activeElement;return !!a&&(a.classList.contains("edit")||a.classList.contains("hr-in")||a.id==="dlInput")}
 function render(){const before=snap();renderAll();flip(before)}
@@ -647,6 +672,7 @@ setInterval(render,60000);
   db.collection("habits").onSnapshot(s=>{habits=docs(s);render()},err);
   db.collection("inbox").onSnapshot(s=>{inbox=docs(s);render()},err);
   db.collection("workout").onSnapshot(s=>{wk={};s.docs.forEach(d=>{wk[d.id]=d.data()});render()},err);
+  applyLinkOps();
   db.collection("habitlog").where("date",">=",last7()[0]).onSnapshot(s=>{hlog={};s.docs.forEach(d=>{hlog[d.id]=(d.data().h)||{}});render()},err);
 })();
 </script>

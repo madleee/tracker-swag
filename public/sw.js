@@ -1,5 +1,5 @@
 // keeps a copy of the tracker on the phone: opens even when the network or ssl hiccups
-const C="tracker-v2",PAGES=["./","index.html","manifest.webmanifest","icon-192.png","icon-512.png"];
+const C="tracker-v3",PAGES=["./","index.html","manifest.webmanifest","icon-192.png","icon-512.png"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(PAGES)).then(()=>self.skipWaiting()))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener("fetch",e=>{
