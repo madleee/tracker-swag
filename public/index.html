@@ -4,6 +4,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cut">
 <meta name="theme-color" content="#120c0a">
 <meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <title>трекер-swag</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -650,3 +653,4 @@ setInterval(render,60000);
 <div style="text-align:center;margin:28px 0 40px;font-size:12px;opacity:.55">
 <a href="#" onclick="trackerExport();return false" style="color:inherit">скачать бэкап</a> ·
 <label style="cursor:pointer">загрузить бэкап<input type="file" accept=".json" hidden onchange="this.files[0]&&trackerImport(this.files[0])"></label></div>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").catch(()=>{})</script>
