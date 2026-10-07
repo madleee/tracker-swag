@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cut">
+<meta name="theme-color" content="#120c0a">
+<meta name="mobile-web-app-capable" content="yes">
+<title>трекер-swag</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* layout: one narrow column like a pinned telegram note — header w/ month pager, routine, inbox, todo, money, events, done */
+:root{
+  --ink:#0a0504; --panel:#170e0a; --line:#2e1c15; --bone:#ede3dc; --mute:#9c8a82;
+  --lilac:#c23a52; --ev:#3aa597; --rec:#e0764a; --ok:#8cc39a; --fire:#ff8a3d; --dot:rgba(237,227,220,.17); --bgop:.42;
+  --display:"Anton",Impact,"Arial Narrow",sans-serif;
+  --body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --ink:#f6efea; --panel:#fffaf7; --line:#e6d6cd; --bone:#2a1710; --mute:#7a655c;
+  --lilac:#9e1f38; --ev:#17756b; --rec:#c05a2c; --ok:#2f7d45; --fire:#d4621c; --dot:rgba(42,23,16,.15); --bgop:.2; color-scheme:light}}
+:root[data-theme="light"]{
+  --ink:#f6efea; --panel:#fffaf7; --line:#e6d6cd; --bone:#2a1710; --mute:#7a655c;
+  --lilac:#9e1f38; --ev:#17756b; --rec:#c05a2c; --ok:#2f7d45; --fire:#d4621c; --dot:rgba(42,23,16,.15); --bgop:.2; color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--ink);color:var(--bone);font:15px/1.45 var(--body);padding-inline:16px;padding-block:20px 60px}
+.wrap{position:relative;z-index:1;max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+header{display:flex;flex-direction:column;gap:10px}
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font:600 38px/1.02 "Oswald",var(--display);letter-spacing:.005em;margin:0;text-transform:lowercase;text-wrap:balance}
+.dl{font:500 13px var(--mono);color:var(--mute);display:flex;gap:8px;align-items:center}
+.dl button{font:inherit;color:var(--bone);background:none;border:1px dashed var(--line);border-radius:6px;padding:3px 8px;cursor:pointer}
+.dl input{font:inherit;background:var(--panel);color:var(--bone);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
+.left{color:var(--lilac)}
+.pbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pnav{display:flex;align-items:center;gap:8px;font:500 13px var(--mono)}
+.pnav button{background:none;border:1px solid var(--line);color:var(--bone);border-radius:6px;width:30px;height:30px;cursor:pointer;font:inherit}
+.pnav button:disabled{opacity:.25;cursor:default}
+.plabel{min-width:118px;text-align:center}
+.arch{font:11px var(--mono);color:var(--mute);border:1px solid var(--line);border-radius:10px;padding:1px 7px}
+.close{font:500 12px var(--mono);background:none;border:1px dashed var(--lilac);color:var(--lilac);border-radius:6px;padding:6px 10px;cursor:pointer}
+.close.arm{background:var(--lilac);color:var(--ink);border-style:solid}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--lilac);width:0;transition:width .4s}
+.stat{font:12px var(--mono);color:var(--mute);letter-spacing:.04em}
+section{display:flex;flex-direction:column;gap:8px}
+h2{font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:0;display:flex;justify-content:space-between}
+.list{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--lilac);border-radius:10px;padding:4px 0}
+.row{display:grid;grid-template-columns:28px 42px 1fr auto;align-items:center;gap:6px;padding:7px 10px;min-height:40px}
+.row+.row{border-top:1px solid var(--line)}
+.row .num{font:500 13px var(--mono);color:var(--mute);font-variant-numeric:tabular-nums}
+.row .txt{min-width:0;overflow-wrap:anywhere;cursor:text}
+.row.opt .txt{color:var(--mute)}
+.chip{font:11px var(--mono);border:1px solid var(--line);border-radius:10px;padding:1px 7px;color:var(--mute);margin-left:6px;white-space:nowrap}
+.row.done .txt{color:var(--mute);text-decoration:line-through;text-decoration-color:var(--line)}
+.check{width:20px;height:20px;border-radius:5px;border:1.5px solid var(--mute);background:none;cursor:pointer;display:grid;place-items:center;padding:0;color:var(--ink)}
+.check.on{background:var(--lilac);border-color:var(--lilac)}
+.check.on::after{content:"";width:9px;height:5px;border:2px solid var(--ink);border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.acts{display:flex;align-items:center;gap:2px}
+.del{font:13px var(--mono);background:none;border:0;color:var(--mute);cursor:pointer;padding:4px 6px;border-radius:5px}
+.del.arm{color:var(--rec);border:1px solid var(--rec)}
+.fire{background:none;border:0;padding:4px;cursor:pointer;color:var(--mute);opacity:.22;display:grid;place-items:center;border-radius:5px;transition:opacity .15s}
+.fire:hover{opacity:.55}
+.fire.on{color:var(--fire);opacity:1}
+.edit{font:inherit;width:100%;background:var(--ink);color:var(--bone);border:1px solid var(--lilac);border-radius:6px;padding:4px 6px}
+.empty{color:var(--mute);padding:12px 14px;font-size:14px}
+form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+form input[type=text],form input[type=number],form select,form input[type=date],form input[type=time]{font:inherit;background:var(--panel);color:var(--bone);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+form input[type=text]{flex:1 1 180px}
+form input[type=number]{width:110px}
+label.opt{font:12px var(--mono);color:var(--mute);display:flex;gap:5px;align-items:center;cursor:pointer}
+.btn{font:600 14px var(--body);background:var(--bone);color:var(--ink);border:0;border-radius:8px;padding:9px 14px;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--lilac);outline-offset:2px}
+
+.routine .list{border-left-color:var(--bone)}
+.routine .row{grid-template-columns:28px 50px 1fr auto auto}
+.hr{font:500 13px var(--mono);font-variant-numeric:tabular-nums;color:var(--bone);background:none;border:0;padding:2px 0;cursor:pointer;text-align:left}
+.hr.none{color:var(--mute);opacity:.5}
+.hr-in{font:12px var(--mono);width:100%;background:var(--ink);color:var(--bone);border:1px solid var(--line);border-radius:6px;padding:2px 3px}
+.check.rt{border-color:var(--bone)}
+.check.rt.on{background:var(--bone);border-color:var(--bone)}
+.row.rtdone .txt{color:var(--mute)}
+.dots{display:flex;gap:4px;align-items:center}
+.dots i{width:7px;height:7px;border-radius:50%;border:1px solid var(--mute);opacity:.5;display:block}
+.dots i.on{background:var(--bone);border-color:var(--bone);opacity:1}
+.dots i.today{width:9px;height:9px}
+
+.inbox .list{border-left-color:var(--mute)}
+.inbox .row{grid-template-columns:1fr auto}
+.totk{font:12px var(--mono);background:none;border:1px solid var(--line);color:var(--bone);border-radius:6px;padding:3px 8px;cursor:pointer;white-space:nowrap}
+
+.money .row{grid-template-columns:34px 1fr auto auto}
+.mhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.totals{display:flex;flex-direction:column;gap:4px;font:13px var(--mono);font-variant-numeric:tabular-nums;padding:2px 2px 0}
+.totals b{font-weight:500}
+.bal{text-align:right;font-variant-numeric:tabular-nums}
+.bal small{display:block;font:11px var(--mono);color:var(--mute);letter-spacing:.08em}
+.bal b{font:500 20px var(--mono)}
+.bal.pos b{color:var(--ok)} .bal.neg b{color:var(--rec)}
+.dir{font:500 13px var(--mono)}
+.dir.out,.chip.out{color:var(--rec)} .dir.in,.chip.in{color:var(--ok)} .dir.have{color:var(--bone)}
+.mv{font:12px var(--mono);background:none;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:3px 7px;cursor:pointer;white-space:nowrap}
+.mv.arm{color:var(--ok);border-color:var(--ok)}
+.money .row{grid-template-columns:34px 1fr auto auto auto}
+.amt{font:500 14px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;cursor:pointer;background:none;border:0;color:var(--bone);padding:4px}
+.row.settled .amt{text-decoration:line-through;color:var(--mute)}
+.link{font:12px var(--mono);color:var(--lilac)}
+.sub{font:12px var(--mono);color:var(--mute);margin:6px 12px 0;letter-spacing:.08em}
+
+.events .row{grid-template-columns:28px 62px 1fr auto auto}
+.events .list{border-left-color:var(--ev)}
+.wk{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}
+.workout .list{border-left-color:var(--fire);padding:4px 0}
+.wh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:7px 12px;font:12px var(--mono);color:var(--mute)}
+.wh b{font:500 13px var(--mono);color:var(--fire);text-transform:uppercase;letter-spacing:.08em}
+.wr{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 12px;border-top:1px solid var(--line);font-size:14px}
+.wr span{min-width:0;overflow-wrap:anywhere}
+.wr i{font:500 13px var(--mono);font-style:normal;color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums}
+.wnote{font:12px var(--mono);color:var(--mute);line-height:1.6}
+.check.ev{border-color:var(--ev)}
+.check.ev.on{background:var(--ev);border-color:var(--ev)}
+.when{font:500 13px var(--mono);font-variant-numeric:tabular-nums;line-height:1.2}
+.when small{display:block;color:var(--mute);font-size:11px}
+.soon{font:12px var(--mono);color:var(--ev);white-space:nowrap}
+.row.past{opacity:.45}
+.row.today .soon{color:var(--ink);background:var(--ev);border-radius:6px;padding:2px 7px}
+
+.note{font:12px var(--mono);color:var(--mute);text-align:center}
+#offline{border:1px dashed var(--rec);border-radius:10px;padding:12px;color:var(--mute);font-size:14px}
+@media (prefers-reduced-motion:reduce){.bar i,.fire{transition:none}}
+/* ambient background: blurred drifting strokes + faint dot grid */
+.bgfx{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:var(--bgop);overflow:hidden}
+.bgfx .wl{position:absolute;left:-15%;top:-15%;width:130%;height:130%;will-change:transform}
+@keyframes wv4{0%{transform:translate(-6%,5%) skewX(-8deg) scaleY(.7)}50%{transform:translate(4%,-3%) skewX(6deg) scaleY(1.4)}100%{transform:translate(9%,6%) skewX(-4deg) scaleY(.9) rotate(5deg)}}
+@keyframes wv5{0%{transform:translate(12%,-7%) rotate(-8deg) scale(1.1,.8)}40%{transform:translate(-5%,4%) rotate(4deg) scale(.9,1.5)}100%{transform:translate(-14%,-3%) rotate(9deg) scale(1.2,.9)}}
+@keyframes wv1{0%{transform:translate(-15%,2%) rotate(-4deg) scaleY(.8)}100%{transform:translate(14%,-8%) rotate(5deg) scaleY(1.3)}}
+@keyframes wv2{0%{transform:translate(10%,4%) rotate(3deg) scaleY(1.2)}100%{transform:translate(-10%,-4%) rotate(-4deg) scaleY(.7)}}
+@keyframes wv3{0%{transform:translate(0,-8%) scaleX(.9)}100%{transform:translate(-8%,8%) scaleX(1.15) rotate(6deg)}}
+.dotgrid{position:fixed;inset:-40px;z-index:0;pointer-events:none;background-image:radial-gradient(circle,var(--dot) 1.1px,transparent 1.7px);background-size:20px 20px;-webkit-mask-image:radial-gradient(ellipse at 50% 40%,#000 40%,transparent 100%);mask-image:radial-gradient(ellipse at 50% 40%,#000 40%,transparent 100%)}
+@keyframes drift{to{transform:translate(22px,22px)}}
+@keyframes rowIn{from{opacity:0;transform:translateY(6px) scale(.985);filter:blur(3px)}to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes ignite{0%{transform:scale(.6);opacity:.3}60%{transform:scale(1.25)}100%{transform:scale(1);opacity:1}}
+@keyframes pageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.wrap>*{animation:pageIn .55s cubic-bezier(.2,.8,.2,1) both}
+.wrap>*:nth-child(2){animation-delay:.05s}.wrap>*:nth-child(3){animation-delay:.1s}.wrap>*:nth-child(4){animation-delay:.15s}.wrap>*:nth-child(5){animation-delay:.2s}.wrap>*:nth-child(6){animation-delay:.25s}.wrap>*:nth-child(7){animation-delay:.3s}.wrap>*:nth-child(8){animation-delay:.35s}.wrap>*:nth-child(n+9){animation-delay:.4s}
+.row.enter{animation:rowIn .6s cubic-bezier(.22,.61,.36,1) both}
+.list>.row.enter:nth-child(2){animation-delay:.03s}.list>.row.enter:nth-child(3){animation-delay:.06s}.list>.row.enter:nth-child(4){animation-delay:.09s}.list>.row.enter:nth-child(5){animation-delay:.12s}.list>.row.enter:nth-child(6){animation-delay:.15s}.list>.row.enter:nth-child(n+7){animation-delay:.18s}
+.fire.ignite svg{animation:ignite .45s cubic-bezier(.2,.8,.2,1) both}
+.btn,.check,.fire,.del,.totk,.amt{transition:transform .12s ease,opacity .15s}
+.btn:active,.check:active,.totk:active{transform:scale(.94)}
+.row{transition:background-color .2s}
+.row:hover{background-color:color-mix(in srgb,var(--bone) 3%,transparent)}
+@media (prefers-reduced-motion:reduce){.wrap>*,.row.enter,.fire.ignite svg{animation:none}}
+
+</style>
+
+<div class="bgfx" aria-hidden="true"><canvas class="wl a"></canvas><canvas class="wl b"></canvas></div><div class="dotgrid" aria-hidden="true"></div>
+<div class="wrap">
+  <header>
+    <div class="top">
+      <h1>трек-лист величайшего</h1>
+      <div class="dl"><span>до</span><span id="dlSlot"></span><span class="left" id="daysLeft"></span></div>
+    </div>
+    <div class="pbar">
+      <div class="pnav">
+        <button id="pPrev" aria-label="предыдущий месяц">‹</button>
+        <span class="plabel" id="pLabel">…</span>
+        <button id="pNext" aria-label="следующий месяц">›</button>
+        <span class="arch" id="pArch" hidden></span>
+      </div>
+      <button class="close" id="goNow" hidden>← к текущему</button>
+    </div>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="stat" id="stat">загрузка…</div>
+  </header>
+
+  <div id="offline" hidden>трекер открывается только в claude, войди в аккаунт, чтобы видеть и менять данные</div>
+
+  <section class="routine">
+    <h2><span>рутина</span><span id="rtCount"></span></h2>
+    <div class="list" id="rtList"><div class="empty">рутины пока нет. добавь то, что делаешь каждый день</div></div>
+    <form id="rtForm" autocomplete="off">
+      <input type="time" id="rtTime" aria-label="во сколько (необязательно)">
+      <input type="text" id="rtText" placeholder="дело на каждый день" maxlength="120">
+      <button class="btn" type="submit">добавить</button>
+    </form>
+  </section>
+
+  <section class="inbox">
+    <h2><span>inbox</span><span id="ibCount"></span></h2>
+    <div class="list" id="ibList"><div class="empty">голова пустая. кидай сюда всё, что крутится</div></div>
+    <form id="ibForm" autocomplete="off">
+      <input type="text" id="ibText" placeholder="что в голове…" maxlength="300">
+      <button class="btn" type="submit">кинуть</button>
+    </form>
+  </section>
+
+  <section>
+    <h2><span>todo</span><span id="todoCount"></span></h2>
+    <div class="list" id="todoList"><div class="empty">задач пока нет. добавь первую ниже</div></div>
+    <form id="taskForm" autocomplete="off">
+      <input type="text" id="taskText" placeholder="новая задача" maxlength="200">
+      <label class="opt"><input type="checkbox" id="taskOpt"> опция</label>
+      <button class="btn" type="submit">добавить</button>
+    </form>
+  </section>
+
+  <section class="money">
+    <h2><span>money</span></h2>
+    <div class="mhead">
+      <div class="totals" id="totals"></div>
+      <div class="bal" id="bal"></div>
+    </div>
+    <div class="list" id="moneyList"><div class="empty">трат и доходов пока нет</div></div>
+    <form id="moneyForm" autocomplete="off">
+      <select id="mDir" aria-label="тип"><option value="out">&gt;&gt;&gt; трата</option><option value="in">&lt;&lt;&lt; доход</option><option value="have">=== имеется</option></select>
+      <input type="number" id="mAmount" placeholder="сумма" min="0" step="any" inputmode="decimal">
+      <select id="mCur" aria-label="валюта"><option value="TRY">₺</option><option value="RUB">₽</option><option value="USD">$</option></select>
+      <input type="text" id="mLabel" placeholder="на что / откуда" maxlength="120">
+      <select id="mTask" aria-label="задача"><option value="">без задачи</option></select>
+      <label class="opt"><input type="checkbox" id="mOpt"> опция</label>
+      <button class="btn" type="submit">добавить</button>
+    </form>
+  </section>
+
+  <section class="events">
+    <h2><span>events</span><span id="evCount"></span></h2>
+    <div class="list" id="evList"><div class="empty">ивентов пока нет. добавь дату ниже</div></div>
+    <form id="evForm" autocomplete="off">
+      <input type="date" id="evDate" aria-label="дата">
+      <input type="time" id="evTime" aria-label="время">
+      <input type="text" id="evTitle" placeholder="что за ивент" maxlength="120">
+      <input type="text" id="evPlace" placeholder="где (необязательно)" maxlength="80">
+      <button class="btn" type="submit">добавить</button>
+    </form>
+  </section>
+
+  <section class="workout">
+    <h2><span>workout</span><span>2× в неделю</span></h2>
+    <div class="wk">
+      <div class="list wday">
+        <div class="wh"><b>день а</b><span>спина, плечи, руки</span></div>
+        <div class="wr"><span>тяга блока к тазу (low row)</span><i>3 × 10-12 · 45 кг</i></div>
+        <div class="wr"><span>lateral raises</span><i>3 × 12-15 · 8 кг</i></div>
+        <div class="wr"><span>молотки</span><i>3 × 10-12</i></div>
+        <div class="wr"><span>разгибание из-за головы</span><i>3 × 8-12</i></div>
+        <div class="wr"><span>обратные сгибания</span><i>3 × 10-12</i></div>
+        <div class="wr"><span>разгибания на блоке (канат)</span><i>3 × 10-12</i></div>
+      </div>
+      <div class="list wday">
+        <div class="wh"><b>день б</b><span>грудь, широчайшие, руки</span></div>
+        <div class="wr"><span>жим гантелями лежа</span><i>3 × 8-12 · 12 кг</i></div>
+        <div class="wr"><span>lat pulldown</span><i>3 × 10-12 · 30 кг</i></div>
+        <div class="wr"><span>бицепс арнольда</span><i>3 × 8-12 · 12 кг</i></div>
+        <div class="wr"><span>французский жим лёжа</span><i>3 × 8-10</i></div>
+        <div class="wr"><span>молотки на блоке (канат)</span><i>3 × 10-12</i></div>
+        <div class="wr"><span>разгибания в наклоне</span><i>2 × 12-15</i></div>
+      </div>
+    </div>
+    <div class="wnote">отдых 60-90 сек · 1-2 повтора в запасе · верх диапазона во всех подходах → +вес · локти прижаты, без раскачки</div>
+  </section>
+
+  <section>
+    <h2><span>done</span><span id="doneCount"></span></h2>
+    <div class="list" id="doneList"><div class="empty">тут появятся закрытые задачи и ивенты</div></div>
+  </section>
+
+  <div class="note">нажми на текст, чтобы изменить · на сумму, чтобы отметить оплачено/получено</div>
+</div>
+
+<script>
+/* local db: same api as the artifact db, stored in this browser (localStorage) */
+(function(){
+const KEY="trackerswag-db",SEED={};
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S){S=SEED;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+const L=new Set();
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}L.forEach(f=>f())};
+const col=c=>S[c]||(S[c]={});
+const rid=()=>Math.random().toString(36).slice(2,12)+Date.now().toString(36);
+const clone=o=>JSON.parse(JSON.stringify(o));
+const qs=(c,w)=>({docs:Object.entries(col(c)).filter(([id,d])=>!w||cmp(d[w[0]],w[1],w[2])).map(([id,d])=>({id,data:()=>clone(d)}))});
+const cmp=(a,op,b)=>op===">="?a>=b:op==="<="?a<=b:op===">"?a>b:op==="<"?a<b:op==="=="?a===b:op==="!="?a!==b:true;
+const sub=f=>{L.add(f);f();return()=>L.delete(f)};
+const collection=c=>{const mk=w=>({where:(a,o,b)=>mk([a,o,b]),onSnapshot:(cb)=>sub(()=>cb(qs(c,w))),add:async d=>{const id=rid();col(c)[id]=clone(d);save();return{id}}});return mk(null)};
+const doc=p=>{const [c,id]=p.split("/");return{
+  set:async d=>{col(c)[id]=clone(d);save()},
+  update:async d=>{col(c)[id]={...(col(c)[id]||{}),...clone(d)};save()},
+  delete:async()=>{delete col(c)[id];save()},
+  onSnapshot:cb=>sub(()=>{const d=col(c)[id];cb({exists:!!d,data:()=>clone(d||{})})})}};
+window.claude={use:async()=>({doc,collection})};
+window.trackerExport=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:"application/json"}));a.download="tracker-backup-"+new Date().toISOString().slice(0,10)+".json";a.click()};
+window.trackerImport=f=>{const r=new FileReader();r.onload=()=>{try{S=JSON.parse(r.result);save();location.reload()}catch(e){alert("не тот файл")}};r.readAsText(f)};
+})();
+</script>
+<script>
+const CUR={TRY:"₺",RUB:"₽",USD:"$"};
+const WD=["вс","пн","вт","ср","чт","пт","сб"];
+const MN=["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
+const FIRE='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2.5c.6 3.2 2.6 4.9 4 6.9 1.2 1.7 1.9 3.3 1.9 5.1A5.9 5.9 0 0 1 12 20.5a5.9 5.9 0 0 1-5.9-6c0-2.4 1.2-4.2 2.6-5.6.2 1.5.8 2.6 1.9 3.2-.3-3.3.4-6.5 1.4-9.6z"/></svg>';
+let db=null, meta={current:"2026-10"}, periods={}, tasks=[], money=[], events=[], habits=[], hlog={}, inbox=[];
+let viewP=null;
+const $=id=>document.getElementById(id);
+const fmt=n=>Number(n||0).toLocaleString("ru-RU");
+const pad=n=>String(n).padStart(2,"0");
+const isoDay=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const today=()=>isoDay(new Date());
+const base=()=>meta.current||"2026-10";
+function defaultDeadline(id){const [y,m]=id.split("-").map(Number);const last=new Date(y,m,0).getDate();return id+"-"+pad(Math.min(30,last))}
+function deadlineOf(id){return (periods[id]&&periods[id].deadline)||(id===base()&&meta.deadline)||defaultDeadline(id)}
+function cur(){let id=base();const t=today();for(let k=0;k<36&&deadlineOf(id)<t;k++)id=nextId(id);return id}
+const view=()=>viewP||cur();
+const pOf=x=>x.period||base();
+const inView=x=>pOf(x)===view();
+const short=iso=>iso.split("-").reverse().slice(0,2).join(".");
+
+const seen=new Set();
+function mark(r,key){r.dataset.k=key.replace(/(todo|done|[01])$/,"");if(!seen.has(key)){seen.add(key);r.classList.add("enter")}}
+const RM=()=>window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+function snap(){const m=new Map();document.querySelectorAll(".row[data-k]").forEach(e=>{const b=e.getBoundingClientRect();if(b.height)m.set(e.dataset.k,{el:e,b})});return m}
+function flip(before){if(!before.size||RM()||!Element.prototype.animate)return;const now=new Set();const soft="cubic-bezier(.22,.61,.36,1)";
+  document.querySelectorAll(".row[data-k]").forEach(e=>{const k=e.dataset.k;now.add(k);const o=before.get(k);
+    if(!o){e.classList.remove("enter");e.animate([{opacity:0,transform:"translateY(6px) scale(.985)",filter:"blur(3px)"},{opacity:1,transform:"none",filter:"blur(0)"}],{duration:560,delay:90,easing:soft,fill:"backwards"});return}
+    const b=e.getBoundingClientRect();const dx=o.b.left-b.left,dy=o.b.top-b.top;
+    if(Math.abs(dx)<1&&Math.abs(dy)<1)return;e.classList.remove("enter");
+    const far=Math.abs(dy)>60;e.animate(far?[{transform:`translate(${dx}px,${dy}px) scale(.985)`,opacity:.7,boxShadow:"0 10px 30px rgba(0,0,0,.3)"},{transform:"none",opacity:1,boxShadow:"0 0 0 rgba(0,0,0,0)"}]:[{transform:`translate(${dx}px,${dy}px)`},{transform:"none"}],{duration:far?720:520,easing:soft})});
+  before.forEach((o,k)=>{if(now.has(k))return;const g=o.el.cloneNode(true);g.classList.remove("enter");Object.assign(g.style,{position:"fixed",left:o.b.left+"px",top:o.b.top+"px",width:o.b.width+"px",height:o.b.height+"px",margin:"0",zIndex:"5",pointerEvents:"none",background:"var(--panel)",borderRadius:"8px"});
+    document.body.appendChild(g);const a=g.animate([{opacity:1,transform:"none",filter:"blur(0)"},{opacity:0,transform:"translateY(-4px) scale(.985)",filter:"blur(3px)"}],{duration:480,easing:soft,fill:"forwards"});a.onfinish=()=>g.remove()})}
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+function armDelete(btn,fn,label){
+  const idle=btn.textContent;
+  btn.addEventListener("click",()=>{
+    if(btn.classList.contains("arm")){fn();return}
+    btn.classList.add("arm");btn.textContent=label||"удалить?";
+    setTimeout(()=>{btn.classList.remove("arm");btn.textContent=idle},3000);
+  });
+}
+function armMove(btn,fn,label){
+  const idle=btn.textContent;
+  btn.addEventListener("click",()=>{
+    if(btn.classList.contains("arm")){fn();return}
+    btn.classList.add("arm");btn.textContent=label;
+    setTimeout(()=>{btn.classList.remove("arm");btn.textContent=idle},3000);
+  });
+}
+function inlineEdit(span,value,save){
+  span.addEventListener("click",()=>{
+    const inp=el("input","edit");inp.type="text";inp.value=value;inp.maxLength=300;
+    span.replaceWith(inp);inp.focus();
+    let done=false;
+    const finish=ok=>{if(done)return;done=true;const v=inp.value.trim();
+      if(ok&&v&&v!==value)save(v);else inp.replaceWith(span)};
+    inp.addEventListener("keydown",e=>{if(e.key==="Enter")finish(true);if(e.key==="Escape")finish(false)});
+    inp.addEventListener("blur",()=>finish(true));
+  });
+}
+async function write(fn){if(!db)return;try{await fn()}catch(e){console.error(e);$("stat").textContent="не сохранилось, попробуй ещё раз"}}
+function dayDiff(iso){const t=new Date();t.setHours(0,0,0,0);const d=new Date(iso+"T00:00:00");return Math.round((d-t)/864e5)}
+function pLabel(id){const [y,m]=id.split("-").map(Number);return MN[m-1]+" "+y}
+function nextId(id){let [y,m]=id.split("-").map(Number);m++;if(m>12){m=1;y++}return y+"-"+pad(m)}
+function addMonth(iso,fallbackId){
+  if(!iso){const [y,m]=fallbackId.split("-").map(Number);return isoDay(new Date(y,m,0))}
+  let [y,m,d]=iso.split("-").map(Number);m++;if(m>12){m=1;y++}
+  const last=new Date(y,m,0).getDate();return y+"-"+pad(m)+"-"+pad(Math.min(d,last));
+}
+function prevId(id){let [y,m]=id.split("-").map(Number);m--;if(m<1){m=12;y--}return y+"-"+pad(m)}
+
+/* ---------- tasks ---------- */
+function viewTasks(){return tasks.filter(inView)}
+function todoPos(num){const list=viewTasks().filter(t=>t.status!=="done").sort((a,b)=>a.num-b.num);const i=list.findIndex(t=>t.num===num);return i<0?null:i+1}
+function taskRow(t,pos){
+  const isDone=t.status==="done";
+  const r=el("div","row"+(isDone?" done":"")+(t.optional?" opt":""));mark(r,"t"+t._id+t.status);
+  const c=el("button","check"+(isDone?" on":""));c.setAttribute("aria-label",isDone?"вернуть в todo":"закрыть задачу");
+  c.onclick=()=>{c.classList.toggle("on");write(()=>db.doc("tasks/"+t._id).update({status:isDone?"todo":"done",doneAt:isDone?null:new Date().toISOString()}))};
+  const n=el("span","num",pos+".");
+  const wrap=el("span","txt");const s=el("span",null,t.text);wrap.append(s);
+  if(t.optional)wrap.append(el("span","chip","опц"));
+  if(isDone){money.filter(m=>m.task!=null&&Number(m.task)===t.num).forEach(m=>wrap.append(el("span","chip "+m.dir,(m.dir==="out"?"−":"+")+fmt(m.amount)+" "+(CUR[m.cur]||m.cur))))}
+  inlineEdit(s,t.text,v=>write(()=>db.doc("tasks/"+t._id).update({text:v})));
+  const acts=el("span","acts");
+  if(!isDone){
+    const f=el("button","fire"+(t.fire?" on":""));f.innerHTML=FIRE;f.setAttribute("aria-label",t.fire?"убрать огонёк":"пометить огоньком");f.setAttribute("aria-pressed",t.fire?"true":"false");
+    if(t.fire&&!seen.has("f"+t._id))f.classList.add("ignite");if(t.fire)seen.add("f"+t._id);else seen.delete("f"+t._id);
+    f.onclick=()=>write(()=>db.doc("tasks/"+t._id).update({fire:!t.fire}));
+    acts.append(f);
+  }
+  const d=el("button","del","×");d.setAttribute("aria-label","удалить задачу");
+  armDelete(d,()=>write(async()=>{for(const m of money.filter(m=>m.task!=null&&Number(m.task)===t.num))await db.doc("money/"+m._id).update({task:null});await db.doc("tasks/"+t._id).delete()}));
+  acts.append(d);
+  r.append(c,n,wrap,acts);return r;
+}
+function nextNum(){return tasks.reduce((m,t)=>Math.max(m,t.num||0),0)+1}
+function addTask(text,optional){const num=nextNum();return db.doc("tasks/t"+num).set({num,text,status:"todo",optional:!!optional,fire:false,period:view(),createdAt:new Date().toISOString(),doneAt:null})}
+
+/* ---------- money ---------- */
+function moneyRow(m){
+  const r=el("div","row"+(m.settled?" settled":"")+(m.optional?" opt":""));mark(r,"m"+m._id+(m.settled?1:0));
+  r.append(el("span","dir "+m.dir,m.dir==="out"?">>>":m.dir==="have"?"===":"<<<"));
+  const wrap=el("span","txt");const s=el("span",null,m.label||"");wrap.append(s);
+  if(m.task!=null&&m.task!==""){const p=todoPos(Number(m.task));wrap.append(el("span","link",p?" #"+p:" #✓"))}
+  if(m.optional)wrap.append(el("span","chip","опц"));
+  inlineEdit(s,m.label||"",v=>write(()=>db.doc("money/"+m._id).update({label:v})));
+  const a=el("button","amt",fmt(m.amount)+" "+(CUR[m.cur]||m.cur));
+  if(m.dir!=="have"){a.title=m.dir==="out"?"отметить оплачено":"отметить получено";
+    a.onclick=()=>write(()=>db.doc("money/"+m._id).update({settled:!m.settled}))}
+  else a.style.cursor="default";
+  let mv;
+  if(m.dir==="in"){mv=el("button","mv","→ имеется");mv.setAttribute("aria-label","перенести в имеется");
+    armMove(mv,()=>write(()=>db.doc("money/"+m._id).update({dir:"have",settled:false,fromIn:true})),"получено?")}
+  else if(m.dir==="have"&&m.fromIn){mv=el("button","mv","↩");mv.title="вернуть в «ждёшь»";mv.setAttribute("aria-label","вернуть в ждёшь");
+    mv.onclick=()=>write(()=>db.doc("money/"+m._id).update({dir:"in",fromIn:false}))}
+  else mv=el("span");
+  const d=el("button","del","×");d.setAttribute("aria-label","удалить запись");
+  armDelete(d,()=>write(()=>db.doc("money/"+m._id).delete()));
+  r.append(wrap,a,mv,d);return r;
+}
+
+/* ---------- events ---------- */
+function evCheck(ev){
+  const c=el("button","check ev"+(ev.done?" on":""));c.setAttribute("aria-label",ev.done?"вернуть ивент":"завершить ивент");
+  c.onclick=()=>write(()=>db.doc("events/"+ev._id).update({done:!ev.done,doneAt:ev.done?null:new Date().toISOString()}));
+  return c;
+}
+function eventRow(ev){
+  const diff=dayDiff(ev.date);
+  const r=el("div","row"+(diff<0?" past":"")+(diff===0?" today":""));mark(r,"e"+ev._id+"0");
+  const d=new Date(ev.date+"T00:00:00");
+  const w=el("span","when",short(ev.date));
+  w.append(el("small",null,WD[d.getDay()]+(ev.time?" · "+ev.time:"")));
+  const wrap=el("span","txt");const s=el("span",null,ev.title);wrap.append(s);
+  if(ev.place)wrap.append(el("span","chip",ev.place));
+  inlineEdit(s,ev.title,v=>write(()=>db.doc("events/"+ev._id).update({title:v})));
+  const soon=el("span","soon",diff<0?"прошло":diff===0?"сегодня":diff===1?"завтра":"через "+diff+" дн.");
+  const x=el("button","del","×");x.setAttribute("aria-label","удалить ивент");
+  armDelete(x,()=>write(()=>db.doc("events/"+ev._id).delete()));
+  r.append(evCheck(ev),w,wrap,soon,x);return r;
+}
+function doneEventRow(ev){
+  const r=el("div","row done");mark(r,"e"+ev._id+"1");
+  const n=el("span","num",short(ev.date));
+  const wrap=el("span","txt");wrap.append(el("span",null,ev.title));
+  if(ev.place)wrap.append(el("span","chip",ev.place));
+  const x=el("button","del","×");x.setAttribute("aria-label","удалить ивент");
+  armDelete(x,()=>write(()=>db.doc("events/"+ev._id).delete()));
+  r.append(evCheck(ev),n,wrap,x);return r;
+}
+
+/* ---------- routine ---------- */
+function last7(){const out=[];const d=new Date();for(let i=6;i>=0;i--){const x=new Date(d);x.setDate(d.getDate()-i);out.push(isoDay(x))}return out}
+function habitRow(h){
+  const t=today(),doneToday=!!(hlog[t]&&hlog[t][h._id]);
+  const r=el("div","row"+(doneToday?" rtdone":""));mark(r,"h"+h._id);
+  const c=el("button","check rt"+(doneToday?" on":""));c.setAttribute("aria-label",doneToday?"снять отметку за сегодня":"отметить за сегодня");
+  c.onclick=()=>write(()=>{const m={...(hlog[t]||{})};if(m[h._id])delete m[h._id];else m[h._id]=true;return db.doc("habitlog/"+t).set({date:t,h:m})});
+  const hr=el("button","hr"+(h.time?"":" none"),h.time||"--:--");hr.setAttribute("aria-label","изменить время");
+  hr.onclick=()=>{const i=el("input","hr-in");i.type="time";i.value=h.time||"";i.setAttribute("aria-label","время");hr.replaceWith(i);i.focus();
+    let fin=false;const done=()=>{if(fin)return;fin=true;if(i.value!==(h.time||""))write(()=>db.doc("habits/"+h._id).update({time:i.value||""}));else i.replaceWith(hr)};
+    i.onchange=done;i.onblur=done;i.onkeydown=e=>{if(e.key==="Enter")done()}};
+  const wrap=el("span","txt");const s=el("span",null,h.text);wrap.append(s);
+  inlineEdit(s,h.text,v=>write(()=>db.doc("habits/"+h._id).update({text:v})));
+  const dots=el("span","dots");dots.setAttribute("aria-label","последние 7 дней");
+  last7().forEach(day=>{const i=el("i",(hlog[day]&&hlog[day][h._id]?"on":"")+(day===t?" today":""));i.title=short(day);dots.append(i)});
+  const x=el("button","del","×");x.setAttribute("aria-label","удалить из рутины");
+  armDelete(x,()=>write(()=>db.doc("habits/"+h._id).delete()));
+  r.append(c,hr,wrap,dots,x);return r;
+}
+function renderRoutine(){
+  const list=[...habits].sort((a,b)=>((a.time||"99:99")+(a.createdAt||"")).localeCompare((b.time||"99:99")+(b.createdAt||"")));
+  $("rtList").replaceChildren(...(list.length?list.map(habitRow):[el("div","empty","рутины пока нет. добавь то, что делаешь каждый день")]));
+  const t=today(),n=list.filter(h=>hlog[t]&&hlog[t][h._id]).length;
+  $("rtCount").textContent=list.length?n+"/"+list.length+" сегодня":"";
+}
+
+/* ---------- inbox ---------- */
+function inboxRow(it){
+  const r=el("div","row");mark(r,"i"+it._id);
+  const wrap=el("span","txt");const s=el("span",null,it.text);wrap.append(s);
+  inlineEdit(s,it.text,v=>write(()=>db.doc("inbox/"+it._id).update({text:v})));
+  const acts=el("span","acts");
+  const to=el("button","totk","→ todo");to.setAttribute("aria-label","перенести в todo");
+  to.onclick=()=>write(async()=>{await addTask(it.text,false);await db.doc("inbox/"+it._id).delete()});
+  const x=el("button","del","×");x.setAttribute("aria-label","удалить мысль");
+  armDelete(x,()=>write(()=>db.doc("inbox/"+it._id).delete()));
+  acts.append(to,x);r.append(wrap,acts);return r;
+}
+function renderInbox(){
+  const list=[...inbox].sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+  $("ibList").replaceChildren(...(list.length?list.map(inboxRow):[el("div","empty","голова пустая. кидай сюда всё, что крутится")]));
+  $("ibCount").textContent=list.length||"";
+}
+
+/* ---------- header / months ---------- */
+function renderHeader(){
+  const p=periods[view()]||{};const deadline=deadlineOf(view());
+  const slot=$("dlSlot");slot.textContent="";
+  const b=el("button",null,deadline?short(deadline):"—");b.setAttribute("aria-label","изменить дедлайн");
+  b.onclick=()=>{const i=el("input");i.type="date";i.id="dlInput";i.value=deadline||"";slot.replaceChildren(i);i.focus();
+    i.onchange=()=>{if(i.value)write(()=>db.doc("periods/"+view()).set({...p,deadline:i.value}))};
+    i.onblur=()=>renderHeader()};
+  slot.append(b);
+  if(deadline){const days=Math.ceil((new Date(deadline+"T23:59:59")-new Date())/864e5);
+    $("daysLeft").textContent=days>=0?"· "+days+" дн.":"· дедлайн прошёл"}else $("daysLeft").textContent="";
+  const v=view(),c=cur();
+  $("pLabel").textContent=pLabel(v);
+  $("pArch").hidden=v===c;$("pArch").textContent=v<c?"прошлое":"план";
+  $("goNow").hidden=v===c;
+  const vt=viewTasks(),main=vt.filter(t=>!t.optional),opt=vt.filter(t=>t.optional);
+  const total=main.length,done=main.filter(t=>t.status==="done").length,od=opt.filter(t=>t.status==="done").length;
+  $("barFill").style.width=total?Math.round(done/total*100)+"%":"0";
+  $("stat").textContent=(total?done+" из "+total+" закрыто":"пусто")+(opt.length?" · опц "+od+"/"+opt.length:"");
+}
+$("pPrev").onclick=()=>{viewP=prevId(view());render()};
+$("pNext").onclick=()=>{viewP=nextId(view());render()};
+$("goNow").onclick=()=>{viewP=null;render()};
+
+/* ---------- render ---------- */
+function busy(){const a=document.activeElement;return !!a&&(a.classList.contains("edit")||a.classList.contains("hr-in")||a.id==="dlInput")}
+function render(){const before=snap();renderAll();flip(before)}
+function renderAll(){
+  if(busy())return;
+  renderHeader();renderRoutine();renderInbox();
+  const vt=viewTasks();
+  const todo=vt.filter(t=>t.status!=="done").sort((a,b)=>a.num-b.num);
+  const done=vt.filter(t=>t.status==="done").sort((a,b)=>a.num-b.num);
+  $("todoList").replaceChildren(...(todo.length?todo.map((t,i)=>taskRow(t,i+1)):[el("div","empty","всё закрыто. добавь новую задачу ниже")]));
+  const ve=events.filter(inView);
+  const open=ve.filter(e=>!e.done);
+  const up=open.filter(e=>dayDiff(e.date)>=0).sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+  const past=open.filter(e=>dayDiff(e.date)<0).sort((a,b)=>b.date.localeCompare(a.date));
+  $("evList").replaceChildren(...(open.length?[...up,...past].map(eventRow):[el("div","empty","ивентов пока нет. добавь дату ниже")]));
+  $("evCount").textContent=up.length||"";
+  const evDone=ve.filter(e=>e.done).sort((a,b)=>b.date.localeCompare(a.date));
+  const doneRows=[...done.map((t,i)=>taskRow(t,i+1)),...evDone.map(doneEventRow)];
+  $("doneList").replaceChildren(...(doneRows.length?doneRows:[el("div","empty","тут появятся закрытые задачи и ивенты")]));
+  {const tm=todo.filter(t=>!t.optional).length,to=todo.length-tm;$("todoCount").textContent=(tm||"")+(to?(tm?" + ":"")+to+" опц":"");}$("doneCount").textContent=(done.length+evDone.length)||"";
+  const sel=$("mTask"),keep=sel.value;sel.replaceChildren(el("option",null,"без задачи"));sel.firstChild.value="";
+  todo.forEach(t=>{const o=el("option",null,"#"+todoPos(t.num)+" "+t.text.slice(0,28));o.value=t.num;sel.append(o)});sel.value=keep;
+  const doneNums=new Set(done.map(t=>t.num));
+  const live=money.filter(inView).filter(m=>!(m.task!=null&&doneNums.has(Number(m.task))));
+  const outs=live.filter(m=>m.dir==="out"),ins=live.filter(m=>m.dir==="in"),haves=live.filter(m=>m.dir==="have");
+  const ml=$("moneyList");ml.replaceChildren();
+  if(!live.length)ml.append(el("div","empty","трат и доходов пока нет"));
+  if(haves.length){ml.append(el("div","sub","=== имеется"));haves.forEach(m=>ml.append(moneyRow(m)))}
+  if(ins.length){ml.append(el("div","sub","<<< приходит"));ins.forEach(m=>ml.append(moneyRow(m)))}
+  if(outs.length){ml.append(el("div","sub",">>> уходит"));outs.sort((a,b)=>(a.task||99)-(b.task||99)).forEach(m=>ml.append(moneyRow(m)))}
+  const pending=list=>{const s={};list.filter(m=>!m.settled&&!m.optional).forEach(m=>{s[m.cur]=(s[m.cur]||0)+Number(m.amount||0)});return s};
+  const show=s=>Object.entries(s).map(([c,v])=>fmt(v)+" "+(CUR[c]||c)).join(" + ")||"0";
+  const pi=pending(ins),po=pending(outs),ph={};haves.forEach(m=>{ph[m.cur]=(ph[m.cur]||0)+Number(m.amount||0)});
+  const tot=$("totals");tot.replaceChildren();
+  const i=el("span");i.append(el("b","dir in","<<< "),document.createTextNode("ждёшь "+show(pi)));
+  const o=el("span");o.append(el("b","dir out",">>> "),document.createTextNode("ещё уйдёт "+show(po)));
+  if(haves.length){const h=el("span");h.append(el("b","dir have","=== "),document.createTextNode("имеется "+show(ph)));tot.append(h)}
+  tot.append(i,o);
+  const bal={};new Set([...Object.keys(ph),...Object.keys(pi),...Object.keys(po)]).forEach(c=>{bal[c]=(ph[c]||0)+(pi[c]||0)-(po[c]||0)});
+  const entries=Object.entries(bal),neg=entries.some(([,v])=>v<0);
+  const B=$("bal");B.className="bal "+(entries.length?(neg?"neg":"pos"):"");B.replaceChildren(el("small",null,"останется"));
+  B.append(el("b",null,entries.length?entries.map(([c,v])=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(v))+" "+(CUR[c]||c)).join(" / "):"0"));
+}
+
+/* ---------- forms ---------- */
+$("taskForm").addEventListener("submit",e=>{e.preventDefault();
+  const text=$("taskText").value.trim();if(!text||!db)return;
+  write(()=>addTask(text,$("taskOpt").checked));
+  $("taskText").value="";$("taskOpt").checked=false;
+});
+$("moneyForm").addEventListener("submit",e=>{e.preventDefault();
+  const amount=Number($("mAmount").value);if(!amount||!db)return;
+  const task=$("mTask").value;
+  write(()=>db.collection("money").add({dir:$("mDir").value,amount,cur:$("mCur").value,label:$("mLabel").value.trim(),task:task?Number(task):null,optional:$("mOpt").checked,settled:false,period:view(),createdAt:new Date().toISOString()}));
+  $("mAmount").value="";$("mLabel").value="";$("mOpt").checked=false;
+});
+$("evForm").addEventListener("submit",e=>{e.preventDefault();
+  const date=$("evDate").value,title=$("evTitle").value.trim();if(!date||!title||!db)return;
+  write(()=>db.collection("events").add({date,time:$("evTime").value||"",title,place:$("evPlace").value.trim(),done:false,period:view(),createdAt:new Date().toISOString()}));
+  $("evTitle").value="";$("evPlace").value="";$("evTime").value="";
+});
+$("rtForm").addEventListener("submit",e=>{e.preventDefault();
+  const text=$("rtText").value.trim();if(!text||!db)return;
+  write(()=>db.collection("habits").add({text,time:$("rtTime").value||"",createdAt:new Date().toISOString()}));
+  $("rtText").value="";$("rtTime").value="";
+});
+$("ibForm").addEventListener("submit",e=>{e.preventDefault();
+  const text=$("ibText").value.trim();if(!text||!db)return;
+  write(()=>db.collection("inbox").add({text,createdAt:new Date().toISOString()}));
+  $("ibText").value="";
+});
+
+
+
+/* ambient background: waves pre-rendered once into small bitmaps, layers only move (cheap) */
+(function(){const cs=getComputedStyle(document.documentElement),v=n=>cs.getPropertyValue(n).trim()||"#c23a52";
+  const P={w1:"M-130 120 C -40 -30, 60 260, 120 150 S 170 20, 240 110 C 300 190, 330 40, 420 70 S 520 230, 560 140",
+    w2:"M-130 330 C -20 250, 30 470, 130 380 C 210 300, 180 200, 260 260 S 390 430, 450 320 S 530 250, 560 300",
+    w3:"M-130 540 C -30 420, 80 690, 170 560 C 230 470, 300 620, 340 520 S 470 420, 560 590",
+    w4:"M-130 720 C -10 640, 60 800, 150 700 S 260 610, 320 730 C 370 820, 450 640, 560 700",
+    w5:"M-130 230 C 0 390, 90 100, 180 250 C 250 360, 290 150, 360 230 S 500 360, 560 200",
+    w6:"M-130 440 C -50 380, 40 520, 110 450 C 190 370, 150 560, 240 520 S 360 380, 430 470 S 540 560, 560 430",
+    w8:"M-130 630 C -40 700, 50 540, 140 640 C 210 720, 260 560, 330 610 S 460 720, 560 600"};
+  const L={a:[["w1","--lilac",4.5],["w3","--lilac",5.5],["w8","--lilac",3.5],["w4","--fire",3]],b:[["w2","--ev",3.5],["w6","--ev",2.5],["w5","--lilac",2.5]]};
+  if(typeof Path2D==="undefined")return;
+  document.querySelectorAll(".bgfx .wl").forEach(c=>{const key=[...c.classList].find(k=>L[k]);const x=c.getContext&&c.getContext("2d");if(!x||!key)return;
+    c.width=240;c.height=480;x.scale(.6,.6);if("filter" in x)x.filter="blur(13px)";x.lineCap="round";x.globalAlpha=.7;
+    for(const [id,col,w] of L[key]){x.strokeStyle=v(col);x.lineWidth=w*4.5;x.stroke(new Path2D(P[id]))}});
+  /* continuous drift: each axis is its own sine with a different period, so the layer never stops */
+  const M={a:{x:[13,6.2,0],y:[5,8.3,1.3],r:[4,7.1,2.1],s:[.22,9.4,.7],s0:1.05},
+           b:{x:[12,7.4,2.4],y:[5,5.9,.4],r:[7,8.8,3.3],s:[.28,10.6,1.9],s0:1.12}};
+  const els=[...document.querySelectorAll(".bgfx .wl")].map(c=>({c,m:M[[...c.classList].find(k=>M[k])]})).filter(o=>o.m);
+  const S=(a,t)=>a[0]*Math.sin(t*2*Math.PI/a[1]+a[2]);
+  const t0=performance.now();
+  (function tick(now){const t=(now-t0)/1000*0.56;
+    for(const {c,m} of els)c.style.transform=`translate(${S(m.x,t).toFixed(2)}%,${S(m.y,t).toFixed(2)}%) rotate(${S(m.r,t).toFixed(2)}deg) scaleY(${(m.s0+S(m.s,t)).toFixed(3)})`;
+    requestAnimationFrame(tick)})(t0);
+})();
+
+render();
+setInterval(render,60000);
+(async()=>{
+  const c=window.claude;db=c&&c.use?await c.use("db"):null;
+  if(!db){$("offline").hidden=false;$("stat").textContent="нет подключения к данным";return}
+  const docs=s=>s.docs.map(d=>({...d.data(),_id:d.id}));
+  const err=e=>console.error(e);
+  db.doc("meta/plan").onSnapshot(s=>{if(s.exists)meta=s.data();render()},err);
+  db.collection("periods").onSnapshot(s=>{periods={};s.docs.forEach(d=>{periods[d.id]=d.data()});render()},err);
+  db.collection("tasks").onSnapshot(s=>{tasks=docs(s);render()},err);
+  db.collection("money").onSnapshot(s=>{money=docs(s);render()},err);
+  db.collection("events").onSnapshot(s=>{events=docs(s);render()},err);
+  db.collection("habits").onSnapshot(s=>{habits=docs(s);render()},err);
+  db.collection("inbox").onSnapshot(s=>{inbox=docs(s);render()},err);
+  db.collection("habitlog").where("date",">=",last7()[0]).onSnapshot(s=>{hlog={};s.docs.forEach(d=>{hlog[d.id]=(d.data().h)||{}});render()},err);
+})();
+</script>
+<div style="text-align:center;margin:28px 0 40px;font-size:12px;opacity:.55">
+<a href="#" onclick="trackerExport();return false" style="color:inherit">скачать бэкап</a> ·
+<label style="cursor:pointer">загрузить бэкап<input type="file" accept=".json" hidden onchange="this.files[0]&&trackerImport(this.files[0])"></label></div>
