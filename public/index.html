@@ -259,28 +259,101 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 </div>
 
 <script>
-/* local db: same api as the artifact db, stored in this browser (localStorage) */
+/* local db + optional github sync. data lives in this browser; with sync on it is merged with a json file in a private repo */
 (function(){
-const KEY="trackerswag-db",SEED={};
+const KEY="trackerswag-db",SK="trackerswag-sync";
 let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
-if(!S){S=SEED;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+if(!S||typeof S!=="object")S={};
 const L=new Set();
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}L.forEach(f=>f())};
+const now=()=>Date.now();
+const isCol=k=>k[0]!=="_";
+const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const notify=()=>L.forEach(f=>{try{f()}catch(e){console.error(e)}});
+const save=()=>{persist();notify();schedulePush()};
 const col=c=>S[c]||(S[c]={});
-const rid=()=>Math.random().toString(36).slice(2,12)+Date.now().toString(36);
+const dels=()=>S._del||(S._del={});
+const rid=()=>Math.random().toString(36).slice(2,12)+now().toString(36);
 const clone=o=>JSON.parse(JSON.stringify(o));
-const qs=(c,w)=>({docs:Object.entries(col(c)).filter(([id,d])=>!w||cmp(d[w[0]],w[1],w[2])).map(([id,d])=>({id,data:()=>clone(d)}))});
+const strip=d=>{const o=clone(d);delete o._t;return o};
+const qs=(c,w)=>({docs:Object.entries(col(c)).filter(([id,d])=>!w||cmp(d[w[0]],w[1],w[2])).map(([id,d])=>({id,data:()=>strip(d)}))});
 const cmp=(a,op,b)=>op===">="?a>=b:op==="<="?a<=b:op===">"?a>b:op==="<"?a<b:op==="=="?a===b:op==="!="?a!==b:true;
 const sub=f=>{L.add(f);f();return()=>L.delete(f)};
-const collection=c=>{const mk=w=>({where:(a,o,b)=>mk([a,o,b]),onSnapshot:(cb)=>sub(()=>cb(qs(c,w))),add:async d=>{const id=rid();col(c)[id]=clone(d);save();return{id}}});return mk(null)};
+const put=(c,id,d)=>{col(c)[id]={...clone(d),_t:now()};delete dels()[c+"/"+id]};
+const collection=c=>{const mk=w=>({where:(a,o,b)=>mk([a,o,b]),onSnapshot:cb=>sub(()=>cb(qs(c,w))),add:async d=>{const id=rid();put(c,id,d);save();return{id}}});return mk(null)};
 const doc=p=>{const [c,id]=p.split("/");return{
-  set:async d=>{col(c)[id]=clone(d);save()},
-  update:async d=>{col(c)[id]={...(col(c)[id]||{}),...clone(d)};save()},
-  delete:async()=>{delete col(c)[id];save()},
-  onSnapshot:cb=>sub(()=>{const d=col(c)[id];cb({exists:!!d,data:()=>clone(d||{})})})}};
+  set:async d=>{put(c,id,d);save()},
+  update:async d=>{put(c,id,{...strip(col(c)[id]||{}),...clone(d)});save()},
+  delete:async()=>{delete col(c)[id];dels()[c+"/"+id]=now();save()},
+  onSnapshot:cb=>sub(()=>{const d=col(c)[id];cb({exists:!!d,data:()=>strip(d||{})})})}};
 window.claude={use:async()=>({doc,collection})};
+
+/* merge two states: per document, newest _t wins; deletions are kept as tombstones */
+function merge(A,B){
+  const out={_del:{...(A._del||{})}};
+  for(const [k,t] of Object.entries(B._del||{}))if(!(out._del[k]>=t))out._del[k]=t;
+  const cols=new Set([...Object.keys(A),...Object.keys(B)].filter(isCol));
+  for(const c of cols){out[c]={};const a=A[c]||{},b=B[c]||{};
+    for(const id of new Set([...Object.keys(a),...Object.keys(b)])){
+      const x=a[id],y=b[id];const d=!x?y:!y?x:((y._t||0)>=(x._t||0)?y:x);
+      const dt=out._del[c+"/"+id];if(dt&&dt>=(d._t||0))continue;out[c][id]=clone(d)}}
+  return out;
+}
+const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+
+/* github sync */
+let cfg={};try{cfg=JSON.parse(localStorage.getItem(SK))||{}}catch(e){}
+const REPO="madleee/tracker-data",FILE="data.json",API="https://api.github.com/repos/"+REPO+"/contents/"+FILE;
+let sha=null,busy=false,again=false,pushT=null,status="";
+const setStatus=t=>{status=t;const el=document.getElementById("syncStatus");if(el)el.textContent=t};
+const b64e=s=>btoa(unescape(encodeURIComponent(s)));
+const b64d=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,""))));
+const hdr=()=>({"Authorization":"Bearer "+cfg.token,"Accept":"application/vnd.github+json"});
+async function pull(){
+  const r=await fetch(API+"?t="+now(),{headers:hdr(),cache:"no-store"});
+  if(r.status===404){sha=null;return null}
+  if(!r.ok)throw new Error(r.status===401?"токен не подходит":"github "+r.status);
+  const j=await r.json();sha=j.sha;return JSON.parse(b64d(j.content));
+}
+async function push(state){
+  const body={message:"sync "+new Date().toISOString(),content:b64e(JSON.stringify(state,null,1))};if(sha)body.sha=sha;
+  const r=await fetch(API,{method:"PUT",headers:{...hdr(),"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(r.status===409||r.status===422)return false;
+  if(!r.ok)throw new Error("github "+r.status);
+  sha=(await r.json()).content.sha;return true;
+}
+async function sync(){
+  if(!cfg.token)return;
+  if(busy){again=true;return}busy=true;setStatus("синк…");
+  try{
+    for(let i=0;i<3;i++){
+      const remote=await pull();
+      if(cfg.fresh){cfg.fresh=false;try{localStorage.setItem(SK,JSON.stringify(cfg))}catch(e){}
+        if(remote&&confirm("в облаке уже есть данные трекера. загрузить их на это устройство? (ок = взять из облака, отмена = объединить с тем, что тут)")){S=clone(remote);persist();notify();break}}
+      const merged=remote?merge(S,remote):merge(S,{});
+      if(!same(merged,S)){S=merged;persist();notify()}
+      if(remote&&same(merged,remote))break;
+      if(await push(merged))break;
+    }
+    const d=new Date();setStatus("синк ✓ "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"));
+  }catch(e){console.error(e);setStatus(navigator.onLine===false?"офлайн, синкну позже":"синк: "+e.message)}
+  busy=false;if(again){again=false;sync()}
+}
+function schedulePush(){if(!cfg.token)return;clearTimeout(pushT);pushT=setTimeout(sync,1500)}
+window.trackerSyncSetup=()=>{
+  if(cfg.token){if(confirm("отключить синк на этом устройстве? данные останутся тут")){cfg={};localStorage.removeItem(SK);setStatus("синк выкл")}return}
+  const t=prompt("вставь github-токен (доступ только к репо tracker-data):");
+  if(!t)return;cfg={token:t.trim(),fresh:true};try{localStorage.setItem(SK,JSON.stringify(cfg))}catch(e){}sync();
+};
+window.trackerSyncNow=sync;
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)sync()});
+window.addEventListener("online",sync);
+setInterval(()=>{if(!document.hidden)sync()},60000);
+window.addEventListener("load",()=>{setStatus(cfg.token?status||"синк…":"синк выкл");sync()});
+
 window.trackerExport=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:"application/json"}));a.download="tracker-backup-"+new Date().toISOString().slice(0,10)+".json";a.click()};
-window.trackerImport=f=>{const r=new FileReader();r.onload=()=>{try{S=JSON.parse(r.result);save();location.reload()}catch(e){alert("не тот файл")}};r.readAsText(f)};
+window.trackerImport=f=>{const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result),t=now();
+  for(const c of Object.keys(x).filter(isCol))for(const id of Object.keys(x[c]||{}))x[c][id]._t=t;
+  x._del={};S=x;persist();notify();sync().then(()=>location.reload())}catch(e){alert("не тот файл")}};r.readAsText(f)};
 })();
 </script>
 <script>
@@ -357,7 +430,7 @@ function prevId(id){let [y,m]=id.split("-").map(Number);m--;if(m<1){m=12;y--}ret
 
 /* ---------- tasks ---------- */
 function viewTasks(){return tasks.filter(inView)}
-function todoPos(num){const list=viewTasks().filter(t=>t.status!=="done").sort((a,b)=>a.num-b.num);const i=list.findIndex(t=>t.num===num);return i<0?null:i+1}
+function todoPos(num){const list=viewTasks().filter(t=>t.status!=="done").sort((a,b)=>a.num-b.num||(a.createdAt||"").localeCompare(b.createdAt||""));const i=list.findIndex(t=>t.num===num);return i<0?null:i+1}
 function taskRow(t,pos){
   const isDone=t.status==="done";
   const r=el("div","row"+(isDone?" done":"")+(t.optional?" opt":""));mark(r,"t"+t._id+t.status);
@@ -381,7 +454,7 @@ function taskRow(t,pos){
   r.append(c,n,wrap,acts);return r;
 }
 function nextNum(){return tasks.reduce((m,t)=>Math.max(m,t.num||0),0)+1}
-function addTask(text,optional){const num=nextNum();return db.doc("tasks/t"+num).set({num,text,status:"todo",optional:!!optional,fire:false,period:view(),createdAt:new Date().toISOString(),doneAt:null})}
+function addTask(text,optional){const num=nextNum();return db.doc("tasks/t"+num+"-"+Math.random().toString(36).slice(2,6)).set({num,text,status:"todo",optional:!!optional,fire:false,period:view(),createdAt:new Date().toISOString(),doneAt:null})}
 
 /* ---------- money ---------- */
 function moneyRow(m){
@@ -565,8 +638,8 @@ function renderAll(){
   if(busy())return;
   renderHeader();renderRoutine();renderInbox();renderWorkout();
   const vt=viewTasks();
-  const todo=vt.filter(t=>t.status!=="done").sort((a,b)=>a.num-b.num);
-  const done=vt.filter(t=>t.status==="done").sort((a,b)=>a.num-b.num);
+  const todo=vt.filter(t=>t.status!=="done").sort((a,b)=>a.num-b.num||(a.createdAt||"").localeCompare(b.createdAt||""));
+  const done=vt.filter(t=>t.status==="done").sort((a,b)=>a.num-b.num||(a.createdAt||"").localeCompare(b.createdAt||""));
   $("todoList").replaceChildren(...(todo.length?todo.map((t,i)=>taskRow(t,i+1)):[el("div","empty","всё закрыто. добавь новую задачу ниже")]));
   const ve=events.filter(inView);
   const open=ve.filter(e=>!e.done);
@@ -677,6 +750,7 @@ setInterval(render,60000);
 })();
 </script>
 <div style="text-align:center;margin:28px 0 40px;font-size:12px;opacity:.55">
+<a href="#" onclick="trackerSyncSetup();return false" style="color:inherit" id="syncStatus">синк выкл</a> ·
 <a href="#" onclick="trackerExport();return false" style="color:inherit">скачать бэкап</a> ·
 <label style="cursor:pointer">загрузить бэкап<input type="file" accept=".json" hidden onchange="this.files[0]&&trackerImport(this.files[0])"></label></div>
 <script>if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{})</script>
